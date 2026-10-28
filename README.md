@@ -1,20 +1,31 @@
-# The KV cache, interactively
+# Interactive explainers
 
-An interactive explainer of the key/value cache in transformer language models: why it exists, what it saves, and what it costs. A static site with no build step, ready for GitHub Pages.
+Interactive explanations of things, one page each, hosted on GitHub Pages. Static files only: no build step, no shared framework, and no shared stylesheet. Each explainer picks its own look to suit its subject.
 
-## What's inside
+| Explainer | Folder | What it covers |
+|---|---|---|
+| How glasses fix blurry vision | [`lenses/`](lenses/) | An eye you can break and fix: near/farsightedness, astigmatism, presbyopia, pupil size, and the lenses that correct them. |
+| The KV cache | [`kv-cache/`](kv-cache/) | Why transformers cache keys and values, what it saves, and what it costs in memory. |
 
-1. **Generation:** why autoregressive decoding repeats work.
-2. **Attention refresher:** click a token to make it the query and see its attention weights.
-3. **Cache vs. no cache:** step through prefill and decode side by side. Type your own text, change the prompt length, and watch recomputed (wasted) vs. cached K/V. Both sides really compute, and the page checks that their outputs are identical.
-4. **Only the last row is new:** the causal attention matrix, showing why K and V are cached but Q isn't.
-5. **Savings:** cumulative work, O(n²) → O(n) for projections and O(n³) → O(n²) for attention scores.
-6. **Memory calculator:** KV cache size for real model configs (Llama, Mistral, Qwen, Falcon, GPT-2), compared against weights and GPU memory.
-7. **MHA → GQA → MQA:** how sharing KV heads shrinks the cache.
-8. **Paging:** a simulation of contiguous max-length reservation vs. PagedAttention-style blocks.
-9. **Quiz.**
+## Layout
 
-The numbers in sections 2–4 come from a real (tiny) single-head attention layer running in the browser (d_model = 8, d_head = 4, seeded random weights). The predicted tokens are scripted.
+```
+index.html            home page: one link per explainer
+<slug>/index.html     an explainer, fully self-contained
+<slug>/thumb.svg      64×64 icon used on the home page and as the favicon
+<slug>/css/, js/      whatever the explainer needs
+_template/            starting point for a new explainer (not linked or listed)
+```
+
+Explainers never reference files outside their own folder, apart from `../` links back to the home page. That keeps each one free to change style, libraries or structure without affecting the others, and lets you move or delete a folder cleanly.
+
+## Adding an explainer
+
+1. `cp -r _template my-topic` and build it there. Use relative paths only (`css/x.css`, not `/css/x.css`); the site is served from `/interactive/`.
+2. Replace `my-topic/thumb.svg` with a 64×64 icon.
+3. Add an `<li>` for it at the top of the list in `index.html` and a row in the table above.
+
+The deploy workflow fails if a folder with an `index.html` isn't linked from the home page. Folders starting with `_` are skipped.
 
 ## Run locally
 
@@ -25,28 +36,15 @@ python3 -m http.server 8000
 # open http://localhost:8000
 ```
 
-## Deploy to GitHub Pages
+## Deploy
 
-Either option works:
+- **GitHub Actions (included):** in *Settings → Pages*, set **Source** to **GitHub Actions**. Every push to `main` deploys via `.github/workflows/pages.yml`, or run it by hand from the Actions tab.
+- **Deploy from a branch:** in *Settings → Pages*, pick the branch and `/ (root)`.
 
-- **GitHub Actions (included):** in *Settings → Pages*, set **Source** to **GitHub Actions**. Every push to `main` deploys via `.github/workflows/pages.yml` (you can also run it manually from the Actions tab).
-- **Deploy from a branch:** in *Settings → Pages*, set **Source** to **Deploy from a branch**, then pick the branch and `/ (root)`.
+The site is at `https://<user>.github.io/interactive/`, and each explainer at `…/interactive/<slug>/`.
 
-The site will be at `https://<user>.github.io/interactive/`. All paths are relative, so it works under any sub-path.
+## Notes per explainer
 
-## Layout
+**lenses/** models the eye as a "reduced eye" (one 60 D refracting surface) with the refractive error as a spectacle prescription, and represents every sphere/cylinder as a 2×2 dioptric power matrix, so astigmatism at any axis is just matrix addition. The view is blurred on the GPU (WebGL2) by convolving each depth layer with the image of the pupil on the retina, which is an ellipse given by the defocus matrix. It falls back to a plain CSS blur without WebGL2. The lab's state is kept in the URL query string, so any setup can be linked to. Model limits are listed at the bottom of the page.
 
-```
-index.html          page content
-css/style.css       styles (light and dark themes)
-js/model.js         toy attention layer (seeded weights, softmax, causal attention)
-js/explorer.js      §2 query explorer
-js/stepper.js       §3 side-by-side generation
-js/matrix.js        §4 attention matrix
-js/compute.js       §5 savings chart
-js/memory.js        §6 memory calculator and model presets
-js/gqa.js           §7 MHA/GQA/MQA diagram
-js/paged.js         §8 paging simulation
-js/quiz.js          §9 quiz
-js/main.js          wiring
-```
+**kv-cache/**: numbers in sections 2–4 come from a real (tiny) single-head attention layer running in the browser (d_model = 8, d_head = 4, seeded random weights).

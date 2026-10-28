@@ -1,0 +1,9 @@
+/* Every explainer owns its look. Replace all of this. */
+:root { --bg: #fafafa; --fg: #1d1d1f; --muted: #66666b; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #141416; --fg: #ececee; --muted: #9a9aa2; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, sans-serif; }
+header, main, footer { max-width: 44rem; margin: 0 auto; padding: 24px 16px; }
+.home { color: var(--muted); }

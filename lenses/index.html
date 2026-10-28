@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How Glasses Work</title>
+  <meta name="description" content="An interactive eye you can break and fix: nearsightedness, farsightedness, astigmatism and presbyopia, and how lenses correct each one." />
+  <link rel="icon" href="thumb.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/lenses.css" />
+</head>
+<body>
+  <header class="hero">
+    <a class="home" href="../">All explainers</a>
+    <div class="hero-chart">
+      <h1 class="chart-text sharp">
+        <span class="r1">HOW</span>
+        <span class="r2">GLASSES</span>
+        <span class="r3">FIX BLURRY</span>
+        <span class="r4">VISION</span>
+      </h1>
+      <div class="chart-text blurred" aria-hidden="true">
+        <span class="r1">HOW</span>
+        <span class="r2">GLASSES</span>
+        <span class="r3">FIX BLURRY</span>
+        <span class="r4">VISION</span>
+      </div>
+      <div class="loupe" tabindex="0" role="img" aria-label="A lens over the chart. Move it with the pointer or the arrow keys."></div>
+    </div>
+    <p class="lede">
+      Your eye focuses light onto the retina. When it focuses in the wrong place, the world blurs, big things
+      less than small ones, just like the chart above. A lens in front of the eye moves the focus back.
+      Below is an eye you can break and fix.
+    </p>
+  </header>
+
+  <main>
+    <!-- The lab -->
+    <section id="lab" class="lab" data-view="scene">
+      <div class="lab-head">
+        <h2>The eye lab</h2>
+        <p>
+          Choose an eye, then put glasses on it. In the window view, click anything to look at it: the eye
+          refocuses, and things at other distances blur to match. Press <kbd>G</kbd> to take the glasses on and off.
+        </p>
+      </div>
+      <div class="lab-grid">
+        <div class="stage">
+          <div class="viewer">
+            <div class="viewer-bar">
+              <div class="seg" role="tablist" aria-label="What to look at">
+                <button type="button" role="tab" data-view="scene">Window</button>
+                <button type="button" role="tab" data-view="chart">Eye chart</button>
+              </div>
+              <button type="button" id="glasses-toggle" class="glasses-btn" aria-pressed="false">
+                <svg viewBox="0 0 40 16" aria-hidden="true"><circle cx="9" cy="9" r="6.5" /><circle cx="31" cy="9" r="6.5" /><path d="M15.5 8 q4.5 -3 9 0 M2.5 8 L0.5 3 M37.5 8 L39.5 3" /></svg>
+                <span>Glasses off</span>
+              </button>
+            </div>
+            <div class="screen">
+              <canvas id="view-canvas" role="img" aria-label="What this eye sees, given the settings below"></canvas>
+              <div class="overlay" id="view-overlay"></div>
+            </div>
+            <div class="viewer-foot">
+              <div class="look-bar" role="group" aria-label="Look at">
+                <span class="foot-label">Look at</span>
+                <button type="button" data-look="near">Phone, 40 cm</button>
+                <button type="button" data-look="room">Calendar, 3 m</button>
+                <button type="button" data-look="far">Library, 40 m</button>
+              </div>
+              <label class="dist-bar">
+                <span class="foot-label">Chart distance</span>
+                <input type="range" id="chart-distance" min="0" max="100" step="0.5" />
+                <output id="chart-distance-out"></output>
+              </label>
+            </div>
+          </div>
+
+          <div class="readouts" aria-live="polite">
+            <div class="ro">
+              <h3>Sharpness</h3>
+              <p class="ro-big"><span id="ro-acuity"></span> <small id="ro-acuity-metric"></small></p>
+              <p class="ro-note" id="ro-acuity-note"></p>
+            </div>
+            <div class="ro">
+              <h3>Focus</h3>
+              <p class="ro-mid" id="ro-focus"></p>
+              <p class="ro-note">for <span id="ro-target"></span></p>
+            </div>
+            <div class="ro">
+              <h3>Focusing effort</h3>
+              <p class="ro-mid" id="ro-effort"></p>
+              <div class="bar"><div id="ro-effort-bar"></div></div>
+              <p class="ro-note" id="ro-effort-note"></p>
+            </div>
+          </div>
+
+          <figure class="bench-fig">
+            <svg id="bench" class="bench" role="img" aria-labelledby="bench-caption"></svg>
+            <figcaption id="bench-caption"></figcaption>
+          </figure>
+        </div>
+
+        <aside class="panel" id="panel" aria-label="Lab controls"></aside>
+      </div>
+    </section>
+
+    <article class="text">
+      <section id="lens">
+        <h2>What a lens does</h2>
+        <p>
+          A lens bends light by different amounts across its face. One that is thicker in the middle (a
+          <strong class="plus">plus</strong> lens) bends parallel light toward a single point: its focal point. One that
+          is thicker at the edges (a <strong class="minus">minus</strong> lens) spreads light out, as if it came from
+          a point in front of the lens.
+        </p>
+        <div class="widget bench-panel" id="lens-demo">
+          <svg class="bench" role="img" aria-label="Parallel light passing through a lens"></svg>
+          <label class="inline-ctl">
+            <span>Lens power</span>
+            <input type="range" class="signed" min="-10" max="10" step="0.25" value="2" style="--zero: 50%" />
+            <output></output>
+          </label>
+          <p class="lens-note"></p>
+        </div>
+        <p>
+          Lens strength is measured in <em>diopters</em>: one over the focal length in metres. A +2 D lens focuses
+          at ½ m, or 50 cm; a +4 D lens at 25 cm. The useful thing about diopters is that they add up. Stack a
+          +2 and a +1 and you get +3. That is why a prescription can be a single number: it is how much power to
+          add to, or take away from, your eye.
+        </p>
+      </section>
+
+      <section id="eye">
+        <h2>How a sharp eye focuses</h2>
+        <p>
+          The cornea, the clear front of the eye, does about two thirds of the focusing, and the lens inside does the
+          rest. Together they make about +60 D, which brings distant light to a point 22 mm back: right where the
+          retina is in a typical eye.
+        </p>
+        <p>
+          Light from something close is still spreading out when it arrives, so it would focus further back. To make
+          up for it, a ring of muscle lets the lens inside the eye bulge and get stronger. This is
+          <em>accommodation</em>. Reading a phone at 40 cm takes 2.5 D of it, since 1 ÷ 0.4 m = 2.5.
+        </p>
+        <p class="try">
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":0,"axis":180,"age":25},"look":"far"}'>Sharp eye, looking out the window</button>
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":0,"axis":180,"age":25},"look":"near"}'>Same eye, looking at the phone</button>
+        </p>
+        <p>
+          When the eye switches to the phone, the lens in the diagram fattens and the street goes soft. Your own eyes
+          do this all day. You just never notice the background blur, because you're not looking at it.
+        </p>
+      </section>
+
+      <section id="myopia">
+        <h2>Nearsighted: the eye is too long</h2>
+        <p>
+          In a nearsighted (myopic) eye, the eyeball is slightly too long for its focusing power. Distant light comes
+          to a point in front of the retina and has spread out again by the time it lands.
+        </p>
+        <p>
+          Close things are fine. Their light arrives spreading out, which pushes the focus back onto the retina. An
+          eye at −2.50 D sees sharply out to 1 ÷ 2.5 = 40 cm, and everything beyond that blurs. Focusing harder can't
+          help: accommodation only ever adds power, and this eye already has too much.
+        </p>
+        <p>
+          The fix is a minus lens that spreads the light out a little before it enters the eye. A −2.50 D lens makes
+          distant light arrive as if it came from 40 cm away, which this eye can handle.
+        </p>
+        <p class="try">
+          <button type="button" data-preset='{"eye":{"sph":-2.5,"cyl":0,"axis":180,"age":25},"glasses":{"sph":-2.5,"cyl":0,"axis":180},"look":"far"}'>Nearsighted, no glasses</button>
+          <button type="button" data-preset='{"eye":{"sph":-2.5,"cyl":0,"axis":180,"age":25},"glasses":{"on":true,"sph":-2.5,"cyl":0,"axis":180},"look":"far"}'>With −2.50 glasses</button>
+          <button type="button" data-preset='{"eye":{"sph":-2.5,"cyl":0,"axis":180,"age":25},"glasses":{"on":true,"sph":-3.75,"cyl":0,"axis":180},"look":"far"}'>Glasses too strong</button>
+        </p>
+        <p>
+          With glasses that are too strong, a young eye still sees sharply, but only by focusing all the time to cancel
+          the extra minus. Watch the focusing effort bar. That constant work is one cause of eye strain and headaches.
+        </p>
+      </section>
+
+      <section id="hyperopia">
+        <h2>Farsighted: the eye is too short</h2>
+        <p>
+          A farsighted (hyperopic) eye is too short, so distant light would focus behind the retina. A young eye hides
+          this by accommodating constantly, even for distant things, which is why many farsighted children pass a basic
+          eye chart test.
+        </p>
+        <p>
+          The trouble is that the same focusing budget then has to cover close work too. At +2.50 D and age 20 there is
+          plenty to spare. At 45 the eye can just about manage the distance, with nothing left over for a phone.
+        </p>
+        <p class="try">
+          <button type="button" data-preset='{"eye":{"sph":2.5,"cyl":0,"axis":180,"age":20},"glasses":{"sph":2.5,"cyl":0,"axis":180},"look":"near"}'>Farsighted at 20, reading</button>
+          <button type="button" data-preset='{"eye":{"sph":2.5,"cyl":0,"axis":180,"age":45},"glasses":{"sph":2.5,"cyl":0,"axis":180},"look":"near"}'>Farsighted at 45, reading</button>
+          <button type="button" data-preset='{"eye":{"sph":2.5,"cyl":0,"axis":180,"age":45},"glasses":{"on":true,"sph":2.5,"cyl":0,"axis":180},"look":"near"}'>At 45, with +2.50 glasses</button>
+        </p>
+        <p>A plus lens supplies the missing power up front, so the eye's own focusing is free for close work again.</p>
+      </section>
+
+      <section id="astigmatism">
+        <h2>Astigmatism: two focal points</h2>
+        <p>
+          An astigmatic cornea is shaped less like a ball and more like the back of a spoon: curved more steeply in one
+          direction than the other. Light spreading in one direction focuses at a different depth from light spreading
+          in the other. Instead of one focal point there are two focal lines, and every point in the world smears into
+          a short streak.
+        </p>
+        <p>
+          On the eye chart, some strokes stay crisp while others blur. In the corner of the diagram, the single point of
+          light stretches into an ellipse or a line.
+        </p>
+        <p>
+          The fix is a cylindrical lens, curved in one direction and flat in the other, so it adds power along one line
+          only. The <em>axis</em> in a prescription says which way that line points. Get it wrong and the lens barely
+          helps, or even adds an astigmatism of its own.
+        </p>
+        <p class="try">
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":-1.75,"axis":180,"age":30},"glasses":{"sph":0,"cyl":-1.75,"axis":180},"view":"chart"}'>Astigmatism, no glasses</button>
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":-1.75,"axis":180,"age":30},"glasses":{"on":true,"sph":0,"cyl":-1.75,"axis":135},"view":"chart"}'>Glasses with the axis 45° off</button>
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":-1.75,"axis":180,"age":30},"glasses":{"on":true,"sph":0,"cyl":-1.75,"axis":180},"view":"chart"}'>Correct glasses</button>
+        </p>
+      </section>
+
+      <section id="presbyopia">
+        <h2>Presbyopia: when focusing runs out</h2>
+        <p>
+          The lens inside the eye keeps growing and stiffening throughout life, so how much it can change shape shrinks
+          every year. Children have more than 12 D to work with. From the mid-40s it gets hard to
+          muster the 2.5 D needed to read at 40 cm, and by about 50 it's out of reach: people start holding their phone
+          at arm's length.
+        </p>
+        <figure class="widget chart-fig" id="age-chart">
+          <figcaption>Focusing range by age</figcaption>
+          <div class="chart-wrap">
+            <svg role="img" aria-label="Line chart: focusing range falls from about 13 diopters at age 8 to 0.5 at age 58 and later. It crosses the 2.5 diopters needed for reading at about age 50."></svg>
+            <div class="tip" hidden></div>
+          </div>
+          <p class="age-readout"></p>
+          <p class="hint">Click or drag across the chart to set the lab's age.</p>
+        </figure>
+        <p>
+          Reading glasses are simply a plus lens that does the close focusing instead. The catch is that with them on,
+          distance goes blurry, because now there's too much power for far away. Bifocals and progressive lenses fix
+          that with a stronger zone at the bottom of the lens, where your eyes point when you read.
+        </p>
+        <p class="try">
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":0,"axis":180,"age":60},"glasses":{"sph":2.25,"cyl":0,"axis":180},"look":"near"}'>Age 60, reading the phone</button>
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":0,"axis":180,"age":60},"glasses":{"on":true,"sph":2.25,"cyl":0,"axis":180},"look":"near"}'>With +2.25 reading glasses</button>
+          <button type="button" data-preset='{"eye":{"sph":0,"cyl":0,"axis":180,"age":60},"glasses":{"on":true,"sph":2.25,"cyl":0,"axis":180},"look":"far"}'>Reading glasses, looking out</button>
+        </p>
+      </section>
+
+      <section id="pupil">
+        <h2>Why squinting helps, and night makes it worse</h2>
+        <p>
+          When focus is off, each point in the world becomes a blur patch on the retina in the shape of the pupil.
+          Light goes through every part of the pupil, and each part lands in a slightly different place. A smaller
+          opening makes a smaller patch. That's why looking through a pinhole sharpens almost any blurry vision, and why
+          squinting, which turns the opening into a slit, helps too.
+        </p>
+        <p>
+          It works the other way at night. Pupils open to 7 or 8 mm in the dark, the patches grow, and a mild
+          prescription that's easy to ignore by day suddenly turns street signs to mush.
+        </p>
+        <p class="try">
+          <button type="button" data-preset='{"eye":{"sph":-1,"cyl":0,"axis":180,"age":30},"glasses":{"sph":-1,"cyl":0,"axis":180},"pupil":2.5,"view":"chart"}'>−1.00 D in daylight</button>
+          <button type="button" data-preset='{"eye":{"sph":-1,"cyl":0,"axis":180,"age":30},"glasses":{"sph":-1,"cyl":0,"axis":180},"pupil":7,"view":"chart"}'>Same eye at night</button>
+          <button type="button" data-preset='{"eye":{"sph":-1,"cyl":0,"axis":180,"age":30},"glasses":{"sph":-1,"cyl":0,"axis":180},"pupil":7,"squint":true,"view":"chart"}'>At night, squinting</button>
+        </p>
+        <p>
+          A squint only narrows the opening top to bottom, so it mostly fixes vertical blur. The point of light in the
+          diagram flattens into a sideways line.
+        </p>
+      </section>
+
+      <section id="prescription">
+        <h2>Reading your prescription</h2>
+        <p>
+          A glasses prescription has a row for each eye: OD for the right, OS for the left. Each row has up to four
+          numbers. Type in one of yours, or any example, to see what each one means.
+        </p>
+        <div class="widget rx" id="rx">
+          <div class="rx-slip">
+            <div class="rx-field"><label for="rx-sph">SPH</label><input id="rx-sph" name="sph" type="number" step="0.25" min="-20" max="20" value="-2.25" /></div>
+            <div class="rx-field"><label for="rx-cyl">CYL</label><input id="rx-cyl" name="cyl" type="number" step="0.25" min="-6" max="0" value="-0.75" /></div>
+            <div class="rx-field"><label for="rx-axis">AXIS</label><input id="rx-axis" name="axis" type="number" step="1" min="0" max="180" value="90" /></div>
+            <div class="rx-field"><label for="rx-add">ADD</label><input id="rx-add" name="add" type="number" step="0.25" min="0" max="4" value="0" /></div>
+          </div>
+          <dl class="rx-explain"></dl>
+          <button type="button" class="rx-load">Load this eye into the lab</button>
+        </div>
+        <p class="hint">
+          Prescriptions sometimes use plus cylinder instead (common from ophthalmologists). To convert: add the cylinder
+          to the sphere, flip the cylinder's sign, and turn the axis by 90°.
+        </p>
+      </section>
+
+      <section id="caveats">
+        <h2>What this simulation leaves out</h2>
+        <ul>
+          <li>
+            The eye is a "reduced eye": one focusing surface of 60 D, 22.3 mm long when sharp. Near- and
+            farsightedness are modelled as an eye that's too long or too short, the most common cause.
+          </li>
+          <li>
+            Glasses sit right at the eye. Real ones sit about 12 mm in front, which shifts the power you need slightly
+            above ±4 D, and makes minus lenses shrink the view and plus lenses magnify it.
+          </li>
+          <li>
+            Blur is pure geometric optics: each point spreads into the shape of the pupil, plus a rough allowance for
+            diffraction. Real eyes have other small aberrations and some depth of focus.
+          </li>
+          <li>
+            Focusing range follows the low end of normal for each age (Hofstetter's formula); individuals vary by
+            several diopters. The sharpness estimate is a rule of thumb, about 20/50 for 1 D of blur through a 3 mm pupil.
+          </li>
+          <li>
+            Your brain isn't simulated. People with uncorrected vision adapt, and often see better than a blur filter
+            suggests. And you're seeing all this through your own eyes, so if you wear glasses, keep them on.
+          </li>
+        </ul>
+      </section>
+    </article>
+  </main>
+
+  <footer class="foot">
+    <a href="../">More interactive explainers</a>
+  </footer>
+
+  <button type="button" id="back-to-text" class="back-chip" hidden><span>Back to the text</span></button>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

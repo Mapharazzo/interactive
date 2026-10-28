@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KV Cache, Interactively</title>
+  <meta name="description" content="An interactive, step-by-step explanation of the KV cache in transformer language models: why it exists, what it saves, and what it costs." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='11' height='22' rx='2' fill='%232563eb'/%3E%3Crect x='18' y='5' width='11' height='22' rx='2' fill='%239333ea'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow"><a class="home" href="../">All explainers</a></p>
+      <h1>The <span class="k">K</span><span class="v">V</span> cache</h1>
+      <p class="lede">
+        Why language models remember the <em>keys</em> and <em>values</em> of every token they've seen,
+        how much work that saves, and why it ends up being one of the biggest memory costs in LLM serving.
+      </p>
+      <nav class="toc" aria-label="Sections">
+        <a href="#generation">1 · Generation</a>
+        <a href="#attention">2 · Attention</a>
+        <a href="#stepper">3 · Cache vs no cache</a>
+        <a href="#matrix">4 · The last row</a>
+        <a href="#compute">5 · Savings</a>
+        <a href="#memory">6 · Memory cost</a>
+        <a href="#gqa">7 · MHA/GQA/MQA</a>
+        <a href="#paged">8 · Paging</a>
+        <a href="#quiz">9 · Quiz</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- 1 -->
+    <section id="generation">
+      <h2><span class="num">1</span> Models write one token at a time</h2>
+      <p>
+        A language model is <strong>autoregressive</strong>: to write a sentence it predicts one token, appends it
+        to the input, and runs again to predict the next one. Every new token needs the model to "look at" every
+        token before it.
+      </p>
+      <p>
+        The naive way to do that is to feed the <em>entire</em> sequence back through the model at each step.
+        That means the 1000th token pays for re-processing the 999 before it — work that was already done
+        on the previous step. The KV cache is the trick that stops this.
+      </p>
+      <div class="callout">
+        <strong>Key idea.</strong> In a decoder-only transformer, a token's keys and values never change once
+        computed, because of the causal mask (a token can only see tokens before it). So compute them once,
+        store them, and reuse them forever.
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="attention">
+      <h2><span class="num">2</span> A 60-second attention refresher</h2>
+      <p>
+        Each token's hidden vector <code>x</code> is projected three ways by learned matrices:
+      </p>
+      <div class="qkv-legend">
+        <div><span class="chip q">Q</span> <b>query</b> = x·W<sub>Q</sub> — "what am I looking for?"</div>
+        <div><span class="chip k">K</span> <b>key</b> = x·W<sub>K</sub> — "what do I contain?"</div>
+        <div><span class="chip v">V</span> <b>value</b> = x·W<sub>V</sub> — "what do I hand over if picked?"</div>
+      </div>
+      <p>
+        A token's output is a weighted average of the <em>values</em> of all tokens up to and including itself,
+        with weights <code>softmax(q · kᵢ / √d)</code>. Only the <em>current</em> token's query is used, but
+        the keys and values of <em>every</em> earlier token are needed. That asymmetry is the whole story.
+      </p>
+      <p class="hint">Click any token below to make it the query, and see which keys it attends to.</p>
+      <div id="attn-explorer" class="card"></div>
+    </section>
+
+    <!-- 3 -->
+    <section id="stepper">
+      <h2><span class="num">3</span> Generation, with and without a cache</h2>
+      <p>
+        Both panels run the same toy attention layer on the same text. Step through it. Generation has two phases:
+        <strong>prefill</strong> processes the whole prompt in one go, then <strong>decode</strong> adds one token per step.
+        Watch what each side recomputes.
+      </p>
+      <div class="card controls-card">
+        <div class="row wrap-row">
+          <label class="grow">Text
+            <input id="st-text" type="text" value="The cat sat on the mat and purred softly ." maxlength="120" />
+          </label>
+          <label>Prompt length <output id="st-plen-out">4</output>
+            <input id="st-plen" type="range" min="1" max="8" value="4" />
+          </label>
+        </div>
+        <div class="row buttons">
+          <button id="st-reset" class="ghost" title="Reset">⟲ Reset</button>
+          <button id="st-back" class="ghost" title="Previous step">◀ Back</button>
+          <button id="st-step" class="primary" title="Next step">Step ▶</button>
+          <button id="st-play" class="ghost" title="Play / pause">▶ Play</button>
+          <span id="st-phase" class="phase-badge">ready</span>
+        </div>
+        <div id="st-sequence" class="sequence" aria-live="polite"></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel nocache">
+          <div class="panel-head">
+            <h3>Without KV cache</h3>
+            <span class="sub">re-run the whole sequence every step</span>
+          </div>
+          <div id="st-nocache" class="kv-table"></div>
+          <div id="st-nocache-stats" class="stats"></div>
+        </div>
+        <div class="panel cache">
+          <div class="panel-head">
+            <h3>With KV cache</h3>
+            <span class="sub">compute only the new token, read the rest</span>
+          </div>
+          <div id="st-cache" class="kv-table"></div>
+          <div id="st-cache-stats" class="stats"></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i class="sw new"></i> computed this step (needed)</span>
+        <span><i class="sw waste"></i> recomputed (wasted — identical to last step)</span>
+        <span><i class="sw cached"></i> read from cache</span>
+        <span><i class="sw neg"></i><i class="sw pos"></i> vector values (−/+)</span>
+      </div>
+
+      <div id="st-output" class="card output-card"></div>
+    </section>
+
+    <!-- 4 -->
+    <section id="matrix">
+      <h2><span class="num">4</span> Only the last row is new</h2>
+      <p>
+        Here's the full causal attention matrix: row <i>i</i> is token <i>i</i>'s query, column <i>j</i> is token
+        <i>j</i>'s key. At each decode step, without a cache the model recomputes the whole lower triangle. But the
+        rows above the new one are outputs for <em>old</em> positions — they were already used to predict earlier
+        tokens and nobody needs them again. The new row needs only <strong>one new query</strong> and <strong>all the
+        keys</strong> (the columns). So: cache K and V, never Q.
+      </p>
+      <div class="card">
+        <div class="row wrap-row">
+          <div class="seg" role="tablist" aria-label="Mode">
+            <button id="mx-mode-nc" role="tab" aria-selected="true">No cache</button>
+            <button id="mx-mode-c" role="tab" aria-selected="false">With KV cache</button>
+          </div>
+          <label class="grow">Newest token (position) <output id="mx-t-out">5</output>
+            <input id="mx-t" type="range" min="0" max="9" value="5" />
+          </label>
+        </div>
+        <div class="matrix-layout">
+          <div id="mx-grid" class="matrix"></div>
+          <div class="matrix-side">
+            <div id="mx-stats" class="stats"></div>
+            <div id="mx-tip" class="tip">Hover a cell to see its score.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section id="compute">
+      <h2><span class="num">5</span> How much work does it save?</h2>
+      <p>
+        Without a cache, step <i>t</i> recomputes K and V for all <i>t</i> tokens and the full <i>t × t</i> triangle
+        of attention scores. With a cache, step <i>t</i> computes K and V for one token and one row of <i>t</i> scores.
+        Summed over a whole generation, quadratic becomes linear (and cubic becomes quadratic).
+      </p>
+      <div class="card">
+        <div class="row wrap-row">
+          <label class="grow">Tokens generated <output id="cp-n-out">512</output>
+            <input id="cp-n" type="range" min="4" max="13" step="0.25" value="9" />
+          </label>
+          <div class="seg" role="tablist" aria-label="Metric">
+            <button id="cp-m-kv" role="tab" aria-selected="true">K/V projections</button>
+            <button id="cp-m-attn" role="tab" aria-selected="false">Attention scores</button>
+          </div>
+          <label class="check"><input id="cp-log" type="checkbox" /> log scale</label>
+        </div>
+        <div id="cp-chart" class="chart"></div>
+        <div id="cp-summary" class="big-stats"></div>
+      </div>
+      <div class="callout warn">
+        <strong>The catch.</strong> Nothing is free: the cache turns a <em>compute</em> problem into a
+        <em>memory</em> problem. Each decode step has to read the model weights plus the entire KV cache from GPU
+        memory to do very little arithmetic, so decoding is usually limited by memory bandwidth, not FLOPs. And the
+        cache itself has to live somewhere…
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="memory">
+      <h2><span class="num">6</span> What does the cache cost?</h2>
+      <p>For every token, every layer stores one key and one value vector per KV head:</p>
+      <div class="formula" id="mem-formula"></div>
+      <div class="card">
+        <div class="mem-grid">
+          <label>Model preset
+            <select id="mem-preset"></select>
+          </label>
+          <label>Layers <output id="mem-layers-out"></output>
+            <input id="mem-layers" type="range" min="1" max="128" />
+          </label>
+          <label>Query heads <output id="mem-qheads-out"></output>
+            <input id="mem-qheads" type="range" min="1" max="128" />
+          </label>
+          <label>KV heads <output id="mem-kvheads-out"></output>
+            <input id="mem-kvheads" type="range" min="1" max="128" />
+          </label>
+          <label>Head dim <output id="mem-hdim-out"></output>
+            <select id="mem-hdim"><option>64</option><option>80</option><option>96</option><option selected>128</option><option>256</option></select>
+          </label>
+          <label>Cache precision
+            <select id="mem-dtype">
+              <option value="4">fp32 (4 B)</option>
+              <option value="2" selected>fp16 / bf16 (2 B)</option>
+              <option value="1">fp8 / int8 (1 B)</option>
+              <option value="0.5">int4 (0.5 B)</option>
+            </select>
+          </label>
+          <label>Context length <output id="mem-seq-out"></output>
+            <input id="mem-seq" type="range" min="7" max="20" step="0.25" value="13" />
+          </label>
+          <label>Batch (concurrent sequences) <output id="mem-batch-out"></output>
+            <input id="mem-batch" type="range" min="0" max="8" step="1" value="0" />
+          </label>
+          <label>GPU memory
+            <select id="mem-gpu">
+              <option value="24">24 GB</option>
+              <option value="48">48 GB</option>
+              <option value="80" selected>80 GB</option>
+              <option value="141">141 GB</option>
+              <option value="192">192 GB</option>
+            </select>
+          </label>
+        </div>
+        <div id="mem-out" class="mem-out"></div>
+        <div id="mem-bar" class="mem-bar"></div>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section id="gqa">
+      <h2><span class="num">7</span> Shrinking the cache: MHA → GQA → MQA</h2>
+      <p>
+        The cache scales with the number of <em>KV</em> heads, not query heads. Classic multi-head attention (MHA)
+        gives each query head its own K/V head. <strong>Grouped-query attention</strong> (GQA) lets a group of query
+        heads share one K/V head, and <strong>multi-query attention</strong> (MQA) shares a single K/V head across all
+        of them. Fewer KV heads → proportionally smaller cache, usually with little quality loss.
+      </p>
+      <div class="card">
+        <div class="row wrap-row">
+          <label class="grow">KV heads (for 8 query heads) <output id="gqa-out">8</output>
+            <input id="gqa-kv" type="range" min="0" max="3" step="1" value="0" />
+          </label>
+          <span id="gqa-name" class="phase-badge"></span>
+        </div>
+        <div id="gqa-svg" class="gqa-svg"></div>
+        <div id="gqa-stats" class="big-stats"></div>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section id="paged">
+      <h2><span class="num">8</span> Serving many users: paging the cache</h2>
+      <p>
+        A server doesn't know in advance how long each reply will be. The simple approach reserves a contiguous slab
+        for the <em>maximum</em> length per request, so most of it sits empty. <strong>PagedAttention</strong> (vLLM)
+        borrows the idea of virtual memory: split the cache into small fixed-size blocks and hand them out on demand,
+        anywhere in memory. Less waste → more requests in flight → higher throughput.
+      </p>
+      <div class="card">
+        <div class="row buttons">
+          <button id="pg-reset" class="ghost">⟲ Reset</button>
+          <button id="pg-step" class="primary">Step ▶</button>
+          <button id="pg-play" class="ghost">▶ Play</button>
+          <span class="hint">64 token slots · max length 16 · page size 4 · same request queue on both sides</span>
+        </div>
+        <div class="panels">
+          <div class="panel">
+            <div class="panel-head"><h3>Contiguous, reserve max length</h3></div>
+            <div id="pg-contig" class="mem-grid-cells"></div>
+            <div id="pg-contig-stats" class="stats"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Paged (blocks of 4)</h3></div>
+            <div id="pg-paged" class="mem-grid-cells"></div>
+            <div id="pg-paged-stats" class="stats"></div>
+          </div>
+        </div>
+        <div id="pg-queue" class="queue"></div>
+        <div class="legend">
+          <span><i class="sw solid"></i> slot holding a token's K/V</span>
+          <span><i class="sw hatch"></i> reserved but empty (wasted)</span>
+          <span><i class="sw free"></i> free</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section id="quiz">
+      <h2><span class="num">9</span> Check yourself</h2>
+      <div id="quiz-root"></div>
+    </section>
+
+    <section id="beyond">
+      <h2>Going further</h2>
+      <div class="cards">
+        <div class="card mini"><h4>Prefix caching</h4><p>Requests sharing a system prompt can share its KV blocks instead of each recomputing them.</p></div>
+        <div class="card mini"><h4>KV quantization</h4><p>Storing K/V in 8 or 4 bits halves or quarters the cache, at a small accuracy cost.</p></div>
+        <div class="card mini"><h4>Sliding-window attention</h4><p>Only attend to the last <i>W</i> tokens, so the cache stops growing past <i>W</i> per layer.</p></div>
+        <div class="card mini"><h4>Multi-head latent attention</h4><p>Cache a small compressed latent per token and reconstruct K/V from it (DeepSeek-V2 and later).</p></div>
+        <div class="card mini"><h4>Eviction</h4><p>Drop the least-attended tokens (e.g. keep "attention sinks" plus recent tokens) to bound memory.</p></div>
+        <div class="card mini"><h4>Offloading</h4><p>Spill cold parts of the cache to CPU memory or disk and fetch them back when needed.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p><a href="../">← More interactive explainers</a></p>
+    <p>
+      All numbers in sections 2–4 come from a real (tiny) attention layer running in your browser:
+      d<sub>model</sub> = 8, d<sub>head</sub> = 4, seeded random weights. The "predicted" tokens are scripted —
+      a single random layer can't actually write English.
+    </p>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
